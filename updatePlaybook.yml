@@ -1,0 +1,36 @@
+---
+- name: Update all packages on RHEL using user's credentials
+  hosts: all
+  become: yes
+  vars_prompt:
+    - name: ansible_password
+      prompt: "Enter your sudo password"
+      private: yes
+  vars:
+    ansible_user: "{{ lookup('env', 'USER') }}"
+    ansible_become_pass: "{{ ansible_password }}"
+    log_date: "{{ ansible_date_time.date }}"
+    log_path: "/var/log/yum-history-{{ ansible_hostname }}-update-{{ log_date }}.log"
+
+  tasks:
+    - name: Update all packages
+      yum:
+        name: '*'
+        state: latest
+        update_cache: yes
+
+    - name: Log the update history
+      shell: yum history info last > {{ log_path }}
+
+    - name: Prompt user to confirm restarts
+      pause:
+        prompt: "Are you ready to restart all Hosts? Press Enter to continue or Ctrl+C to abort."
+      run_once: true
+      delegate_to: localhost
+
+    - name: Reboot all hosts
+      reboot:
+        msg: "Reboot initiated by Ansible after package updates."
+        pre_reboot_delay: 10
+        post_reboot_delay: 30
+        reboot_timeout: 600
